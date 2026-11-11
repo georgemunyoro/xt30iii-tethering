@@ -164,7 +164,8 @@ class Enabler:
         except Exception as exc:
             self.workflow.update(preparing=False, fault='setup'); self.save()
             self.status('setup_restart', 'Restart before trying setup again',
-                'Switch off and restart in service mode with USB connected, holding Shutter + joystick Up. '
+                'Unplug USB for at least five seconds and switch off. Reconnect USB, then switch on '
+                'holding Shutter + joystick Up to enter service mode. '
                 'If shutdown hangs, unplug USB and remove/reinsert the battery first. '
                 'If USB Card Reader was not selected, start normally and select it before entering service mode. '
                 'The next attempt verifies the original state before making changes.', str(exc))
@@ -197,7 +198,8 @@ class Enabler:
                 self.workflow['phase'] = 'menu_armed'; self.save(); self.menu_instructions()
             elif self.workflow.get('fault') == 'setup' and device['node'] == self.workflow.get('failed_node'):
                 self.status('setup_restart', 'Restart the camera in service mode',
-                            'Switch off and restart with USB connected, holding Shutter + joystick Up. Release both after startup.')
+                            'Unplug USB for at least five seconds and switch off. Reconnect USB, then switch on '
+                            'holding Shutter + joystick Up. Release both after startup.')
             else:
                 if flow.missing_references():
                     self.firmware_instructions(); return
@@ -208,7 +210,8 @@ class Enabler:
             return
         if self.workflow.get('fault') == 'setup':
             self.status('setup_restart', 'Verify the interrupted setup first',
-                        'Restart in service mode with USB connected, holding Shutter + joystick Up. '
+                        'Unplug USB for at least five seconds and switch off. Reconnect USB, then switch on '
+                        'holding Shutter + joystick Up to enter service mode. '
                         'Release both after startup. The previous setup journal must be checked before proceeding.')
             return
         if self.workflow.get('fault') == 'usb':
