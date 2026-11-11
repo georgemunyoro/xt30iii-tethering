@@ -6,7 +6,6 @@
 import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import mimetypes
 import os
 from pathlib import Path
 import queue
@@ -299,8 +298,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == '/api/state': self.send(200, json.dumps(self.server.app.snapshot()).encode()); return
         try:
-            name = {'/':'index.html', '/app.js':'app.js', '/style.css':'style.css'}[path]
-            self.send(200, (STATIC/name).read_bytes(), mimetypes.guess_type(name)[0] or 'text/plain')
+            # Windows registry associations can label .js as text/plain, which
+            # browsers reject with nosniff. Serve our three known types directly.
+            name, kind = {'/':('index.html', 'text/html; charset=utf-8'),
+                          '/app.js':('app.js', 'text/javascript; charset=utf-8'),
+                          '/style.css':('style.css', 'text/css; charset=utf-8')}[path]
+            self.send(200, (STATIC/name).read_bytes(), kind)
         except (KeyError, OSError): self.send(404, b'{}')
 
     def do_POST(self):

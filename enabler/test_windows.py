@@ -193,6 +193,8 @@ class LaunchTests(unittest.TestCase):
                         state = json.load(response)
                     self.assertTrue(state['demo'])
                     self.assertEqual(state['actions'], [])
+                    with urlopen(match[0]+'app.js', timeout=5) as response:
+                        self.assertEqual(response.headers.get_content_type(), 'text/javascript')
                 finally:
                     # Demo never accesses a camera; termination is safe here.
                     if sys.platform == 'win32':

@@ -62,7 +62,9 @@ def prepare(data_root, on_status, *, attachment_token=None):
             environment['FUJI_USB_ATTACHMENT_TOKEN'] = attachment_token
         with log.open('xb') as stream:
             process = subprocess.run(command, cwd=ROOT, env=environment, stdout=stream,
-                                     stderr=subprocess.STDOUT, timeout=180)
+                                     stderr=subprocess.STDOUT, timeout=180,
+                                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0,
+                                     start_new_session=os.name != 'nt')
         item.update(returncode=process.returncode, finished=now()); save()
         if not output.exists(): raise RuntimeError(f'{script} stopped before its journal. See {log.name}.')
         row = json.loads(output.read_text())
