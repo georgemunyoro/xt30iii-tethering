@@ -4,4 +4,4 @@
 
 The FFLZ token format used by the firmware importer was checked against that project's `ffcompress/fflz/decompressor.go` and `fflz.go`. The corresponding notice is retained above. The importer extracts and hash-checks only locally supplied firmware; Fujifilm firmware is not part of this repository.
 
-The third-party MIT license applies to those upstream components. This notice does not assign a license to the rest of the project.
+Original project code is licensed under the [MIT License](LICENSE). The upstream components retain their original copyright and MIT license notices.

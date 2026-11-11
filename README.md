@@ -92,4 +92,4 @@ uv run --no-project --with pyusb==1.3.1 --with libusb1==3.3.1 \
 
 The original-byte baseline tests run when the checked reference images are available; otherwise they are explicitly skipped. Other tests use synthetic USB data and do not need a camera. CI runs on Linux, macOS, and Windows. Use `--no-browser` to suppress browser launch or `--port 0` to choose an available port.
 
-See [third-party notices](THIRD_PARTY_NOTICES.md) for the bundled service transport code. This project is not affiliated with Fujifilm.
+Project code is licensed under the [MIT License](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) for the bundled service transport code and its original notices. This project is not affiliated with Fujifilm.
