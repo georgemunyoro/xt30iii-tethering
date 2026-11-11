@@ -1,10 +1,9 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["pyusb==1.3.1", "libusb1==3.3.1"]
+# dependencies = ["pyusb==1.3.1", "libusb1==3.3.1", "libusb-package==1.0.30.1; sys_platform == 'win32'"]
 # ///
 """Guided native USB Fixed enablement for Fujifilm X-T30 III firmware 1.10."""
 import argparse
-import fcntl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import mimetypes
@@ -13,6 +12,7 @@ from pathlib import Path
 import queue
 import secrets
 import signal
+import sys
 import threading
 from urllib.parse import urlparse
 import uuid
@@ -23,6 +23,7 @@ import usb_devices as camera
 import ptp_raw_snapshot as protocol
 import usb_host
 from local_state import atomic_json, now
+from process_lock import exclusive_lock
 
 STATIC = Path(__file__).resolve().parent/'web'
 ACTIONS = {
@@ -98,6 +99,26 @@ class Enabler:
             self.state['actions'] = []
         self.commands.put(action)
 
+    def attached_devices(self):
+        devices = camera.devices()
+        if sys.platform != 'win32': return devices
+        # Windows can reuse a port's address across a power cycle. Persist an
+        # attachment token, changing it only on observed absence/re-enumeration,
+        # never just because the utility restarted. Service child processes use
+        # the same token, so recovery journals still fence an unchanged session.
+        previous = self.workflow.get('windows_attachment', {})
+        if not devices:
+            if previous.get('present'):
+                previous['present'] = False; self.save()
+            return devices
+        if len(devices) != 1: return devices
+        device = devices[0]
+        fingerprint = [device['product'], device['bus'], device['address']]
+        if not previous.get('present') or previous.get('fingerprint') != fingerprint:
+            previous = dict(present=True, fingerprint=fingerprint, token=uuid.uuid4().hex)
+            self.workflow['windows_attachment'] = previous; self.save()
+        return [{**device, 'node': device['node'] + '#' + previous['token']}]
+
     def start(self):
         if self.demo:
             self.status('enabled', 'USB Fixed is enabled',
@@ -129,7 +150,7 @@ class Enabler:
         if flow.missing_references():
             self.firmware_instructions(); return
         # Re-enumerate immediately before mutation; never trust a stale UI device.
-        devices = camera.devices()
+        devices = self.attached_devices()
         if len(devices) != 1 or devices[0]['product'] != 0xFF80:
             raise RuntimeError('Restart in service mode before enabling the menu')
         device = devices[0]
@@ -139,7 +160,8 @@ class Enabler:
             self.menu_instructions(); return
         self.workflow.update(preparing=True, failed_node=device['node']); self.save()
         try:
-            arm = flow.prepare(self.root, self.status)
+            token = self.workflow.get('windows_attachment', {}).get('token') if sys.platform == 'win32' else None
+            arm = flow.prepare(self.root, self.status, attachment_token=token)
         except Exception as exc:
             self.workflow.update(preparing=False, fault='setup'); self.save()
             self.status('setup_restart', 'Restart before trying setup again',
@@ -152,14 +174,15 @@ class Enabler:
         self.save(); self.menu_instructions()
 
     def firmware_instructions(self):
+        command = ('Drag FWUP0037.DAT onto enabler/Import Firmware.cmd. ' if sys.platform == 'win32' else
+                   'From the project folder, run: uv run enabler/import_firmware.py /path/to/FWUP0037.DAT ')
         self.status('firmware', 'Import your firmware references first',
             'Menu setup needs reference images from your unmodified X-T30 III 1.10 FWUP0037.DAT. '
-            'From the project folder, run: uv run enabler/import_firmware.py /path/to/FWUP0037.DAT '
-            'Then click Check connection. Importing files does not access the camera.')
+            + command + 'Then click Check connection. Importing files does not access the camera.')
 
     def detect(self, action=None):
-        devices = camera.devices()
-        fingerprint = tuple((d['product'], d['bus'], d['address']) for d in devices)
+        devices = self.attached_devices()
+        fingerprint = tuple((d['product'], d['bus'], d['address'], d['node']) for d in devices)
         if fingerprint == self.fingerprint and action is None: return
         self.fingerprint = fingerprint
         if not devices:
@@ -192,12 +215,12 @@ class Enabler:
         if self.workflow.get('fault') == 'usb':
             if action != 'restarted' or device['node'] == self.workflow.get('failed_node'):
                 self.status('restart_required', 'Restart the camera normally',
-                    'Unplug USB, switch off and back on with no buttons held, then reconnect. '
+                    'Unplug USB for at least five seconds, switch off and back on with no buttons held, then reconnect. '
                     'If shutdown hangs, remove/reinsert the battery while USB is unplugged. Click Restarted afterward.')
                 return
         if action == 'restart' and device['node'] == self.workflow.get('enabled_node'):
             self.status('enabled', 'Restart to verify the saved setting',
-                'Leave USB Fixed selected. Unplug USB, switch off and back on normally with no buttons held, '
+                'Leave USB Fixed selected. Unplug USB for at least five seconds, switch off and back on normally with no buttons held, '
                 'then reconnect without opening the connection-mode menu. Click Verify restart afterward.')
             return
         self.workflow['last_node'] = device['node']; self.save()
@@ -238,7 +261,7 @@ class Enabler:
                 self.workflow['phase'] = 'enabled'; self.save()
                 self.status('enabled', 'USB Fixed is already enabled',
                     'No setup is needed to use tethering now. Close this utility and open the Fuji app or Tether Companion. '
-                    'To verify persistence: unplug USB, switch off/on normally with no buttons held, reconnect, '
+                    'To verify persistence: unplug USB for at least five seconds, switch off/on normally with no buttons held, reconnect, '
                     'then click Verify restart without changing the connection-mode menu.')
         elif self.workflow.get('phase') == 'menu_armed' or mode == 5:
             self.status('select_fixed', 'Choose USB Fixed',
@@ -300,12 +323,21 @@ def main():
     parser.add_argument('--data-dir', type=Path, default=flow.ROOT/'enabler-data')
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--demo', action='store_true')
+    parser.add_argument('--check-usb', action='store_true', help='Check Windows USB libraries/runtime without opening a camera')
     args = parser.parse_args()
     os.umask(0o077)
     lock_path = flow.ROOT/('enabler-demo.lock' if args.demo else 'companion.lock')
-    with lock_path.open('a') as lock:
-        try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError: raise SystemExit('Tether Companion or the enabler is already running. Close it first.')
+    with exclusive_lock(lock_path):
+        if args.check_usb:
+            if sys.platform != 'win32': parser.error('--check-usb is for the Windows UsbDk runtime')
+            import usb1
+            try:
+                usb_host.pyusb_backend()
+                with usb_host.service_context(usb1): pass
+            except (usb_host.USBHostError, usb1.USBError) as exc:
+                parser.exit(1, f'{usb_host.WINDOWS_HELP}\nDetails: {exc}\n')
+            print('Windows USB ready: both PTP and service libraries initialized with UsbDk. No camera opened.')
+            return
         app = Enabler(args.data_dir, args.demo)
         server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler); server.app = app
         def shutdown(*_):

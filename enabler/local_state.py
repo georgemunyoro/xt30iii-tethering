@@ -18,8 +18,11 @@ def atomic_json(path, value):
             json.dump(value, stream, indent=2); stream.write('\n')
             stream.flush(); os.fsync(stream.fileno())
         os.replace(temporary, path)
-        fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try: os.fsync(fd)
-        finally: os.close(fd)
+        # Windows cannot open directories through os.open. File contents are
+        # flushed above on both platforms before the atomic replacement.
+        if os.name != 'nt':
+            fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try: os.fsync(fd)
+            finally: os.close(fd)
     finally:
         temporary.unlink(missing_ok=True)

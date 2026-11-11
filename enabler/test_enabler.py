@@ -41,7 +41,7 @@ class WorkflowTests(unittest.TestCase):
             self.detect()
         self.assertEqual(self.app.snapshot()['stage'], 'enabled')
         self.assertNotIn('enable', self.app.snapshot()['actions'])
-        self.assertEqual(self.app.workflow['enabled_node'], device()['node'])
+        self.assertTrue(self.app.workflow['enabled_node'].startswith(device()['node']))
 
     def test_reconnect_without_user_restart_confirmation_cannot_claim_persistence(self):
         self.detect()

@@ -1,5 +1,6 @@
 """Journaled orchestration of the existing native-menu proof and arm tools."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -43,7 +44,7 @@ def armed_menu(device):
     return None
 
 
-def prepare(data_root, on_status):
+def prepare(data_root, on_status, *, attachment_token=None):
     token = uuid.uuid4().hex[:12]
     work = Path(data_root)/'setup'; work.mkdir(exist_ok=True, parents=True, mode=0o700)
     operation = work/f'{token}.json'
@@ -55,8 +56,13 @@ def prepare(data_root, on_status):
         log = work/f'{token}-{len(state["commands"])+1}-{script}.log'
         item = dict(script=script, output=str(output), log=str(log), started=now())
         state['commands'].append(item); save()
+        environment = os.environ.copy()
+        environment.pop('FUJI_USB_ATTACHMENT_TOKEN', None)
+        if attachment_token is not None:
+            environment['FUJI_USB_ATTACHMENT_TOKEN'] = attachment_token
         with log.open('xb') as stream:
-            process = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT, timeout=180)
+            process = subprocess.run(command, cwd=ROOT, env=environment, stdout=stream,
+                                     stderr=subprocess.STDOUT, timeout=180)
         item.update(returncode=process.returncode, finished=now()); save()
         if not output.exists(): raise RuntimeError(f'{script} stopped before its journal. See {log.name}.')
         row = json.loads(output.read_text())

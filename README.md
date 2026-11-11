@@ -1,10 +1,12 @@
 # X-T30 III Tether Enabler
 
-A local Mac/Linux utility that exposes **USB Fixed** on the **Fujifilm X-T30 III, firmware 1.10**, then checks whether the camera retains tethering after a normal restart.
+A local utility for macOS, Linux, and Windows x64 that exposes **USB Fixed** on the **Fujifilm X-T30 III, firmware 1.10**, then checks whether the camera retains tethering after a normal restart. Windows support is experimental until a complete camera walkthrough is confirmed.
 
 The development camera successfully used FUJIFILM TETHER APP, retained USB Fixed across a normal power-off/on, and transferred a new JPEG+RAW pair afterward without another service-mode setup. The menu patch is temporary; the selected connection setting is saved through the camera's native menu.
 
 ## Run
+
+For Windows, use the [Windows setup](#windows-setup) below.
 
 1. Clone or download this repository into a writable folder. Install `uv` and `libusb`. On macOS with Homebrew, run `brew install uv libusb` or open `enabler/Install Mac dependencies.command`.
 2. If you need to expose the menu, supply your own **unmodified X-T30 III 1.10 `FWUP0037.DAT`** and import its reference images locally:
@@ -22,6 +24,43 @@ The development camera successfully used FUJIFILM TETHER APP, retained USB Fixed
    On Mac, you can instead open **enabler/Start Tether Enabler.command**. The browser opens <http://127.0.0.1:8769/>; keep the terminal running.
 
 An already-enabled camera skips setup and does not need the firmware references for its read-only check. Close other camera applications before using this utility. After verification, close the utility and open FUJIFILM TETHER APP or your existing photo receiver.
+
+## Windows setup
+
+Use **64-bit Windows 10 or 11 on an Intel/AMD PC**. Windows on ARM has not been validated. Extract the repository into a writable local folder (NTFS), rather than running inside the downloaded ZIP or from a network share.
+
+1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) in PowerShell:
+
+   ```powershell
+   winget install --id astral-sh.uv -e
+   ```
+
+   Reopen your terminal after installation. The launcher installs Python 3.12 and the pinned Python dependencies automatically when needed.
+2. Install **UsbDk_1.0.22_x64.msi** from the [official UsbDk release](https://github.com/daynix/UsbDk/releases/tag/v1.00-22). This installs a Windows system driver and requires administrator approval. Restart Windows if the installer requests it. The utility does not install drivers automatically.
+3. If menu setup is needed, drag your original X-T30 III 1.10 **FWUP0037.DAT** onto **enabler/Import Firmware.cmd**. Alternatively, from the repository folder:
+
+   ```powershell
+   uv run --python 3.12 enabler/import_firmware.py 'C:\path\to\FWUP0037.DAT'
+   ```
+
+4. Quit other camera applications, then double-click **enabler/Start Tether Enabler.cmd**. Keep its terminal open while following the browser guide. To preview the interface without accessing USB:
+
+   ```powershell
+   & '.\enabler\Start Tether Enabler.cmd' --demo
+   ```
+
+5. For restart verification, leave the utility running and disconnect USB for **at least five seconds**, then switch the camera off/on normally and reconnect. Click **Verify restart**. Windows can reuse a USB address, so the guide also records observed disconnections; restarting the utility itself does not count.
+6. Close the utility with **Ctrl+C** in its terminal before opening the Fuji app. If Windows has not rediscovered the camera, unplug and reconnect USB while keeping the camera powered on.
+
+Windows uses [libusb's UsbDk backend](https://github.com/libusb/libusb/wiki/Windows). UsbDk temporarily redirects the camera while the utility owns it and releases it afterward. **Keep the existing Fuji/Windows camera driver; do not replace it with Zadig for this workflow.** The Python DLL is supplied by `libusb-package`; copying DLLs into system folders is unnecessary. If the guide reports missing UsbDk, check that the x64 runtime installed successfully and restart the utility. If using a VM, pass the camera through in both normal and service modes; it changes USB product ID during setup.
+
+To check the Windows libraries and UsbDk runtime without opening a camera, run:
+
+```powershell
+& '.\enabler\Start Tether Enabler.cmd' --check-usb
+```
+
+Automated Windows tests cover startup, journal writes, process locking, library loading, and simulated workflow/recovery. They do not establish that USB transactions with a real camera succeed on Windows. That final hardware check is still pending.
 
 ## What the guide does
 
@@ -51,6 +90,6 @@ uv run --no-project --with pyusb==1.3.1 --with libusb1==3.3.1 \
 ./enabler/run.sh --demo --port 0
 ```
 
-The original-byte baseline tests run when the checked reference images are available; otherwise they are explicitly skipped. Other tests use synthetic USB data and do not need a camera. Use `--no-browser` to suppress browser launch or `--port 0` to choose an available port.
+The original-byte baseline tests run when the checked reference images are available; otherwise they are explicitly skipped. Other tests use synthetic USB data and do not need a camera. CI runs on Linux, macOS, and Windows. Use `--no-browser` to suppress browser launch or `--port 0` to choose an available port.
 
 See [third-party notices](THIRD_PARTY_NOTICES.md) for the bundled service transport code. This project is not affiliated with Fujifilm.
