@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark"><title>Fuji Tether Enabler</title>
+  <link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="/">f<span>.</span></a><span>FUJI TETHER ENABLER</span><span class="version">X-T30 III · 1.10</span></header>
+  <main>
+    <div class="eyebrow">YOUR CAMERA. A NEW CONNECTION.</div>
+    <h1>Enable once.<br><em>Connect normally.</em></h1>
+    <p class="intro">Expose USB Fixed, select it on your camera, and check that tethering stays enabled after a restart.</p>
+    <div class="columns">
+      <section class="card" aria-live="polite" aria-atomic="true">
+        <div class="card-top"><span id="indicator" class="indicator"></span><span id="status-label">CONNECTION</span><span id="demo" hidden>DEMO</span></div>
+        <h2 id="title">Connect your camera</h2>
+        <p id="message">Connect your X-T30 III and switch it on normally. Close other camera apps first.</p>
+        <div id="actions"></div>
+        <p id="error" class="error" hidden></p>
+        <details id="details" hidden><summary>Connection details</summary><pre id="detail"></pre></details>
+      </section>
+      <aside>
+        <ol aria-label="Enablement steps">
+          <li data-step="1"><b>01</b><div><strong>Connect & check</strong><small>Already enabled? Skip setup.</small></div></li>
+          <li data-step="2"><b>02</b><div><strong>Expose the menu</strong><small>Guided service-mode startup.</small></div></li>
+          <li data-step="3"><b>03</b><div><strong>Select USB Fixed</strong><small>One change on the camera.</small></div></li>
+          <li data-step="4"><b>04</b><div><strong>Restart & verify</strong><small>Then open your tethering app.</small></div></li>
+        </ol>
+        <p class="aside-note">This utility checks and enables the connection. Use FUJIFILM TETHER APP or Tether Companion to receive your photos.</p>
+      </aside>
+    </div>
+    <section class="notes">
+      <details><summary>What changes on the camera?</summary><p>Setup temporarily exposes USB Auto and USB Fixed in place of Webcam and RAW conversion. It does not flash firmware. You select USB Fixed yourself; that saved setting has survived a normal restart and a RAW+JPEG transfer on the tested camera.</p><p>The menu patch is temporary. Permanent menu visibility, battery removal, and changing away from USB Fixed have not been validated. Keep USB Fixed selected for this workflow.</p></details>
+      <details><summary>Mac or USB connection help</summary><p>On macOS, install dependencies with the included Install Mac dependencies.command. Unlock your Mac, allow the USB accessory if asked, and quit Photos, Image Capture, and other camera apps. Only one app can use the camera at a time.</p><p>On Linux, install uv and libusb and make sure your account has access to the camera’s USB device. The utility never detaches system drivers or terminates other apps.</p></details>
+    </section>
+  </main>
+  <footer><span><i></i> Local connection · No uploads</span><span>Experimental · X-T30 III firmware 1.10 only</span></footer>
+</body>
+</html>
