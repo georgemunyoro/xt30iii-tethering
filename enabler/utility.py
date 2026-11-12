@@ -47,7 +47,7 @@ def inspect_camera(root):
     try:
         protocol.connect_and_snapshot(report, save, snapshot_fn=snapshot)
     except BaseException as exc:
-        report.update(error=f'{type(exc).__name__}: {exc}', complete=False)
+        report.update(error=f'{type(exc).__name__}: {exc}', error_type=type(exc).__name__, complete=False)
     finally:
         report['finished'] = now(); save()
     return path, report
@@ -235,9 +235,14 @@ class Enabler:
                 self.status('restart_required', 'Restart the camera normally',
                             'The USB reply was incomplete. Unplug USB, switch off/on normally, reconnect, and click Restarted.',
                             report.get('error', 'USB session did not close cleanly'))
+            elif (report.get('error_type') == 'USBHostError'
+                  or report.get('error', '').startswith('USBHostError:')):
+                self.status('error', 'Check USB access on this computer',
+                            report['error'].removeprefix('USBHostError: ').strip(),
+                            f"Connection report: {path}")
             else:
                 self.status('error', 'Camera check did not finish',
-                            'This utility requires X-T30 III firmware 1.10. Close other camera apps and check USB access.',
+                            'The camera check stopped. The error below explains which check failed.',
                             report.get('error', 'Camera session was unavailable'))
             return
         if self.workflow.get('fault') == 'usb':

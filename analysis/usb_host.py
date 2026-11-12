@@ -114,21 +114,28 @@ def access_error(exc):
     if sys.platform == 'win32':
         return USBHostError(f'{WINDOWS_HELP} Details: {exc}')
     if sys.platform == 'darwin':
-        return USBHostError('macOS could not give the companion USB access. Unlock the Mac and allow the USB accessory '
-                            'if prompted. Quit Photos, Image Capture and other camera apps, then use Check connection. '
+        return USBHostError('macOS could not give the utility USB access. Quit FUJIFILM TETHER APP, '
+                            'Photos, Image Capture, and other camera apps. Unlock the Mac and allow the USB accessory '
+                            'if prompted, then use Check connection. '
                             f'Details: {exc}')
     return USBHostError(f'USB access unavailable. Close other camera apps and check device permissions. Details: {exc}')
 
 
 def check_kernel_driver(dev, interface):
     import usb.core
+    if sys.platform == 'darwin':
+        # Darwin reports any IORegistry child as an active driver. That is not
+        # an authoritative test of whether USBInterfaceOpen will succeed.
+        # Leave the ordinary exclusive claim below to decide; do not detach,
+        # enable auto-detach, reset the device, or take over another session.
+        return
     try:
         active = dev.is_kernel_driver_active(interface)
     except NotImplementedError:
-        if sys.platform not in ('darwin', 'win32'): raise
-        return  # macOS/Windows may not support this query; the exclusive claim must still succeed.
+        if sys.platform != 'win32': raise
+        return  # Windows may not support this query; the exclusive claim must still succeed.
     except usb.core.USBError as exc:
-        if sys.platform not in ('darwin', 'win32') or exc.backend_error_code != -12: raise
+        if sys.platform != 'win32' or exc.backend_error_code != -12: raise
         return
     if active:
         raise access_error('Interface has an active kernel driver; it was left attached')

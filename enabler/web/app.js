@@ -18,6 +18,7 @@ async function refresh() {
     $('demo').hidden = !state.demo;
     $('details').hidden = !state.detail;
     $('detail').textContent = state.detail || '';
+    if (state.detail && ['error', 'restart_required', 'setup_restart'].includes(state.stage)) $('details').open = true;
     $('actions').replaceChildren();
     for (const action of state.actions) {
       const button = document.createElement('button');

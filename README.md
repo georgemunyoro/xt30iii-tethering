@@ -25,6 +25,12 @@ For Windows, use the [Windows setup](#windows-setup) below.
 
 An already-enabled camera skips setup and does not need the firmware references for its read-only check. Close other camera applications before using this utility. After verification, close the utility and open FUJIFILM TETHER APP or your existing photo receiver.
 
+### macOS connection troubleshooting
+
+If an older build reports **“Interface has an active kernel driver; it was left attached”**, update this repository and restart the utility. The macOS connection check now attempts the ordinary exclusive interface claim instead of rejecting the connection based on that driver indication. It does not detach drivers or reset the camera.
+
+If the actual claim reports **Resource busy**, quit FUJIFILM TETHER APP, Photos, Image Capture, and any other camera utilities. After any photo transfer finishes, Apple's background camera helper can also be stopped for the current session with `pkill -x PTPCamera`, then click **Check connection**. In Image Capture, choosing **Connecting this camera opens → No application** can prevent an importing app from reopening. If access is denied, unlock the Mac, reconnect USB, and allow the accessory when prompted. See [Apple's accessory instructions](https://support.apple.com/en-us/102282). Copy the complete **Details:** text if the check still fails.
+
 ## Windows setup
 
 Use **64-bit Windows 10 or 11 on an Intel/AMD PC**. Windows on ARM has not been validated. Extract the repository into a writable local folder (NTFS), rather than running inside the downloaded ZIP or from a network share.
