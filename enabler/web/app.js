@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const names = {check: 'Check connection', enable: 'Enable menu', restart: 'Verify restart', restarted: 'Restarted — check camera'};
+const names = {check: 'Check connection', enable: 'Enable menu', restart: 'Verify restart', restarted: 'Restarted — check camera', release_macos: 'Release Mac camera and retry'};
 const steps = {disconnected: 1, checking: 1, normal: 2, service: 2, preparing: 2, menu: 3, select_fixed: 3, enabled: 4, verified: 5};
 let token = '', busy = false, previous = '', actionError = '';
 async function refresh() {
@@ -13,12 +13,12 @@ async function refresh() {
     previous = signature;
     $('title').textContent = state.title;
     $('message').textContent = state.message;
-    $('status-label').textContent = ({enabled: 'READY TO TETHER', verified: 'RESTART VERIFIED', preparing: 'SETUP IN PROGRESS', error: 'NEEDS ATTENTION'})[state.stage] || 'CAMERA CONNECTION';
+    $('status-label').textContent = ({enabled: 'READY TO TETHER', verified: 'RESTART VERIFIED', preparing: 'SETUP IN PROGRESS', error: 'NEEDS ATTENTION', mac_usb_busy: 'NEEDS ATTENTION'})[state.stage] || 'CAMERA CONNECTION';
     $('indicator').className = 'indicator ' + (['enabled', 'verified'].includes(state.stage) ? 'ready' : ['checking', 'preparing'].includes(state.stage) ? 'working' : '');
     $('demo').hidden = !state.demo;
     $('details').hidden = !state.detail;
     $('detail').textContent = state.detail || '';
-    if (state.detail && ['error', 'restart_required', 'setup_restart'].includes(state.stage)) $('details').open = true;
+    if (state.detail && ['error', 'mac_usb_busy', 'restart_required', 'setup_restart'].includes(state.stage)) $('details').open = true;
     $('actions').replaceChildren();
     for (const action of state.actions) {
       const button = document.createElement('button');

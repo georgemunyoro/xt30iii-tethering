@@ -221,7 +221,7 @@ def snapshot(ptp, report, save):
             save()
 
 
-def connect_and_snapshot(report, save, *, snapshot_fn=snapshot, ptp_class=PTP):
+def connect_and_snapshot(report, save, *, snapshot_fn=snapshot, ptp_class=PTP, claim_fn=None):
     access = report['usb_access'] = dict(stage='enumerate')
     save()
     matches = list(usb.core.find(find_all=True, idVendor=0x04CB, backend=usb_host.pyusb_backend()))
@@ -260,7 +260,7 @@ def connect_and_snapshot(report, save, *, snapshot_fn=snapshot, ptp_class=PTP):
             raise RuntimeError('Expected one bulk endpoint in each direction')
         access['stage'] = 'claim_interface'
         save()
-        usb.util.claim_interface(dev, interface)
+        (claim_fn or usb.util.claim_interface)(dev, interface)
         claimed = True
         access['stage'] = 'interface_claimed'
         save()

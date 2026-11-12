@@ -116,7 +116,9 @@ class DiagnosticTests(unittest.TestCase):
         with patch.object(host.sys, 'platform', 'darwin'), \
              patch.object(diagnostics.subprocess, 'run', return_value=SimpleNamespace(stdout=output)) as run:
             self.assertEqual(diagnostics.camera_helpers(), [
-                dict(name='ptpcamerad', pid=84572, uid=501), dict(name='PTPCamera', pid=100, uid=501)])
+                dict(name='ptpcamerad', pid=84572, uid=501, executable='/usr/libexec/ptpcamerad'),
+                dict(name='PTPCamera', pid=100, uid=501,
+                     executable='/System/Library/Image Capture/Devices/PTPCamera.app/Contents/MacOS/PTPCamera')])
             self.assertEqual(run.call_args.args[0], ['/bin/ps', '-axo', 'pid=,uid=,comm='])
 
     def test_probe_claims_and_releases_without_ptp_commands_and_records_helper_restart(self):

@@ -30,10 +30,11 @@ ACTIONS = {
     'menu': ['check'], 'select_fixed': ['check'], 'enabled': ['restart'],
     'verified': ['check'], 'checking': [], 'preparing': [],
     'error': ['check'], 'restart_required': ['restarted'], 'setup_restart': ['check'], 'firmware': ['check'],
+    'mac_usb_busy': ['release_macos', 'check'],
 }
 
 
-def inspect_camera(root):
+def inspect_camera(root, *, release_macos=False):
     folder = Path(root)/'checks'; folder.mkdir(parents=True, exist_ok=True, mode=0o700)
     path = folder/f'{uuid.uuid4().hex}.json'
     report = dict(kind='enabler_read_only_check_v1', started=now(), complete=False, session='not_opened')
@@ -45,10 +46,18 @@ def inspect_camera(root):
             if not ptp.healthy: row['session'] = 'uncertain_after_transport_error'
             checkpoint(); raise
     try:
-        protocol.connect_and_snapshot(report, save, snapshot_fn=snapshot)
+        claim = None
+        if release_macos:
+            from mac_camera import claim_after_release
+            claim = lambda dev, interface: claim_after_release(dev, interface, report, save)
+        protocol.connect_and_snapshot(report, save, snapshot_fn=snapshot, claim_fn=claim)
     except BaseException as exc:
         report.update(error=f'{type(exc).__name__}: {exc}', error_type=type(exc).__name__, complete=False)
     finally:
+        if 'mac_camera_release' in report:
+            from usb_diagnostics import camera_helpers
+            try: report['mac_camera_release']['helpers_after'] = camera_helpers()
+            except Exception as exc: report['mac_camera_release']['helpers_after_error'] = str(exc)
         report['finished'] = now(); save()
     return path, report
 
@@ -65,6 +74,7 @@ class Enabler:
         self.worker = None
         self.fingerprint = None
         self.device = None
+        self.mac_release_node = None
         self.token = secrets.token_urlsafe(32)
         self.state = dict(stage='disconnected', title='Connect your camera',
                           message='Connect your X-T30 III and switch it on normally. Close other camera apps first.',
@@ -182,8 +192,16 @@ class Enabler:
 
     def detect(self, action=None):
         devices = self.attached_devices()
+        if action == 'release_macos':
+            if (self.demo or sys.platform != 'darwin' or self.workflow.get('fault')
+                    or len(devices) != 1 or devices[0]['product'] == 0xFF80
+                    or not self.mac_release_node or devices[0]['node'] != self.mac_release_node):
+                self.mac_release_node = None
+                raise RuntimeError('The connection changed. Use Check connection before releasing Mac camera helpers.')
+            self.mac_release_node = None  # One action, never remembered across checks or restarts.
         fingerprint = tuple((d['product'], d['bus'], d['address'], d['node']) for d in devices)
         if fingerprint == self.fingerprint and action is None: return
+        if action != 'release_macos': self.mac_release_node = None
         self.fingerprint = fingerprint
         if not devices:
             self.device = None
@@ -227,7 +245,10 @@ class Enabler:
             return
         self.workflow['last_node'] = device['node']; self.save()
         self.status('checking', 'Checking USB tethering', 'Reading camera identity and mode. No settings are changed.')
-        path, report = inspect_camera(self.root)
+        if action == 'release_macos':
+            path, report = inspect_camera(self.root, release_macos=True)
+        else:
+            path, report = inspect_camera(self.root)
         self.workflow['last_check'] = str(path); self.save()
         if not report.get('complete') or report.get('session') != 'closed' or report.get('error'):
             if report.get('session') not in ('not_opened', 'not_acquired', 'closed', None):
@@ -237,9 +258,23 @@ class Enabler:
                             report.get('error', 'USB session did not close cleanly'))
             elif (report.get('error_type') == 'USBHostError'
                   or report.get('error', '').startswith('USBHostError:')):
-                self.status('error', 'Check USB access on this computer',
-                            report['error'].removeprefix('USBHostError: ').strip(),
-                            f"Connection report: {path}")
+                access = report.get('usb_access', {})
+                if (sys.platform == 'darwin' and not self.workflow.get('fault')
+                        and report.get('session') == 'not_opened'
+                        and access.get('stage') == 'claim_interface'
+                        and access.get('backend_error_code') in (-3, -6)):
+                    self.mac_release_node = device['node']
+                    release = report.get('mac_camera_release')
+                    detail = f"Connection report: {path}\n{report['error']}"
+                    if release: detail += '\n' + json.dumps(release, indent=2)
+                    self.status('mac_usb_busy', 'Another process is holding the camera connection',
+                        'Finish all photo transfers and close Fuji Tether, Photos, Image Capture, and other camera apps. '
+                        'Release Mac camera and retry force-quits Apple’s camera helpers for your login once, '
+                        'then checks the camera immediately.', detail)
+                else:
+                    self.status('error', 'Check USB access on this computer',
+                                report['error'].removeprefix('USBHostError: ').strip(),
+                                f"Connection report: {path}")
             else:
                 self.status('error', 'Camera check did not finish',
                             'The camera check stopped. The error below explains which check failed.',

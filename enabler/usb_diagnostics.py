@@ -18,7 +18,7 @@ CAMERA_HELPERS = frozenset(('PTPCamera', 'ptpcamerad', 'mscamerad', 'mscamerad-x
 
 def camera_helpers():
     if sys.platform != 'darwin': return []
-    # Only retain known camera helper names and numeric IDs, not command lines
+    # Only retain known camera helper identities, not command arguments
     # or details of unrelated applications. Presence alone does not prove ownership.
     result = subprocess.run(['/bin/ps', '-axo', 'pid=,uid=,comm='],
                             capture_output=True, text=True, timeout=5, check=True)
@@ -29,7 +29,7 @@ def camera_helpers():
         pid, uid, executable = fields
         name = executable.rsplit('/', 1)[-1]
         if name in CAMERA_HELPERS and pid.isdecimal() and uid.isdecimal():
-            helpers.append(dict(name=name, pid=int(pid), uid=int(uid)))
+            helpers.append(dict(name=name, pid=int(pid), uid=int(uid), executable=executable))
     return helpers
 
 
