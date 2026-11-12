@@ -222,16 +222,21 @@ def snapshot(ptp, report, save):
 
 
 def connect_and_snapshot(report, save, *, snapshot_fn=snapshot, ptp_class=PTP):
+    access = report['usb_access'] = dict(stage='enumerate')
+    save()
     matches = list(usb.core.find(find_all=True, idVendor=0x04CB, backend=usb_host.pyusb_backend()))
     if len(matches) != 1 or matches[0].idProduct == 0xFF80:
         raise RuntimeError('Expected one Fujifilm camera in normal PTP mode, not service mode')
     dev, claimed, interface = matches[0], False, None
     protocol_started = False
     try:
+        access['stage'] = 'read_configuration'
+        report['usb'] = dict(id=f'{dev.idVendor:04x}:{dev.idProduct:04x}',
+            bus=dev.bus, address=dev.address, bcd_device=f'0x{dev.bcdDevice:04x}')
+        save()
         cfg = dev.get_active_configuration()
         interfaces = list(cfg)
-        report['usb'] = dict(id=f'{dev.idVendor:04x}:{dev.idProduct:04x}',
-            bus=dev.bus, address=dev.address, bcd_device=f'0x{dev.bcdDevice:04x}',
+        report['usb'].update(
             configuration=cfg.bConfigurationValue,
             interfaces=[dict(number=i.bInterfaceNumber, alternate=i.bAlternateSetting,
                 class_code=i.bInterfaceClass, subclass=i.bInterfaceSubClass,
@@ -245,17 +250,25 @@ def connect_and_snapshot(report, save, *, snapshot_fn=snapshot, ptp_class=PTP):
             raise RuntimeError('Expected exactly one PTP interface at alternate setting zero')
         intf = candidates[0]
         interface = intf.bInterfaceNumber
+        access.update(stage='check_driver', interface=interface)
+        save()
         usb_host.check_kernel_driver(dev, interface)
         bulk = [e for e in intf if usb.util.endpoint_type(e.bmAttributes) == 2]
         incoming = [e.bEndpointAddress for e in bulk if e.bEndpointAddress & 0x80]
         outgoing = [e.bEndpointAddress for e in bulk if not e.bEndpointAddress & 0x80]
         if len(incoming) != 1 or len(outgoing) != 1:
             raise RuntimeError('Expected one bulk endpoint in each direction')
+        access['stage'] = 'claim_interface'
+        save()
         usb.util.claim_interface(dev, interface)
         claimed = True
+        access['stage'] = 'interface_claimed'
+        save()
         protocol_started = True
         snapshot_fn(ptp_class(dev, outgoing[0], incoming[0]), report, save)
     except usb.core.USBError as exc:
+        access.update(error=str(exc), errno=exc.errno, backend_error_code=exc.backend_error_code)
+        save()
         if not protocol_started: raise usb_host.access_error(exc) from exc
         raise
     finally:

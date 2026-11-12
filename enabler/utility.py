@@ -333,12 +333,19 @@ def main():
     parser.add_argument('--port', type=int, default=8769)
     parser.add_argument('--data-dir', type=Path, default=flow.ROOT/'enabler-data')
     parser.add_argument('--no-browser', action='store_true')
-    parser.add_argument('--demo', action='store_true')
-    parser.add_argument('--check-usb', action='store_true', help='Check Windows USB libraries/runtime without opening a camera')
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--demo', action='store_true')
+    modes.add_argument('--check-usb', action='store_true', help='Check Windows USB libraries/runtime without opening a camera')
+    modes.add_argument('--diagnose-usb', action='store_true', help='Report host USB access by claiming/releasing the camera without PTP commands')
     args = parser.parse_args()
     os.umask(0o077)
     lock_path = flow.ROOT/('enabler-demo.lock' if args.demo else 'companion.lock')
     with exclusive_lock(lock_path):
+        if args.diagnose_usb:
+            from usb_diagnostics import diagnose
+            path, report = diagnose(args.data_dir)
+            print(json.dumps(dict(report_path=str(path), **report), indent=2), flush=True)
+            raise SystemExit(0 if report['complete'] else 1)
         if args.check_usb:
             if sys.platform != 'win32': parser.error('--check-usb is for the Windows UsbDk runtime')
             import usb1

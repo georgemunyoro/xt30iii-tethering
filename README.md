@@ -29,7 +29,15 @@ An already-enabled camera skips setup and does not need the firmware references 
 
 If an older build reports **“Interface has an active kernel driver; it was left attached”**, update this repository and restart the utility. The macOS connection check now attempts the ordinary exclusive interface claim instead of rejecting the connection based on that driver indication. It does not detach drivers or reset the camera.
 
-If the actual claim reports **Resource busy**, quit FUJIFILM TETHER APP, Photos, Image Capture, and any other camera utilities. After any photo transfer finishes, Apple's background camera helper can also be stopped for the current session with `pkill -x PTPCamera`, then click **Check connection**. In Image Capture, choosing **Connecting this camera opens → No application** can prevent an importing app from reopening. If access is denied, unlock the Mac, reconnect USB, and allow the accessory when prompted. See [Apple's accessory instructions](https://support.apple.com/en-us/102282). Copy the complete **Details:** text if the check still fails.
+If the actual claim reports **Resource busy** or **Access denied**, quit FUJIFILM TETHER APP, Photos, Image Capture, and any other camera utilities. After any photo transfer finishes, Apple's background camera helper can also be stopped for the current session with `pkill -x 'PTPCamera|ptpcamerad'`, then immediately click **Check connection** without reconnecting USB. In Image Capture, choosing **Connecting this camera opens → No application** can prevent an importing app from reopening. Unlock the Mac and allow the USB accessory if prompted when connecting it. See [Apple's accessory instructions](https://support.apple.com/en-us/102282). Copy the complete **Details:** text if the check still fails.
+
+On macOS, **Access denied (insufficient permissions)** can also mean another process owns the interface; [libusb maps exclusive-access conflicts to this error](https://github.com/libusb/libusb/blob/v1.0.30/libusb/os/darwin_usb.c). Some macOS versions use the helper name `ptpcamerad`, so stopping only `PTPCamera` may do nothing. If the check still fails, close the utility's terminal process, leave the camera connected, and run this from the repository folder:
+
+```sh
+./enabler/run.sh --diagnose-usb
+```
+
+Send the terminal output, including any `libusb:` lines. This probe records the OS and USB library, known camera helpers before/after the attempt, and the USB access stage. It only attempts to claim and release one normal Fujifilm PTP interface; it sends no PTP commands and does not stop helpers, detach drivers, or change camera settings. The JSON report is saved under `enabler-data/diagnostics/`. A helper appearing in the report is a clue, not proof that it owns the camera.
 
 ## Windows setup
 
